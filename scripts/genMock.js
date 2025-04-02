@@ -1,14 +1,14 @@
 const { faker } = require('@faker-js/faker');
 const { ObjectId } = require('bson');
 const { MongoClient } = require('mongodb');
+require('dotenv').config();
 
 const NUM_USERS = 10;
 const MONTHS_BACK = 12;
 const TARGET_TRANSACTIONS = 5000;
-const MONGO_URI = 'mongodb+srv://tomisnhamilton:593994@personal-finance.axs6m.mongodb.net/?retryWrites=true&w=majority&appName=personal-finance';
 
 
-const client = new MongoClient(MONGO_URI);
+const client = new MongoClient(process.env.MONGO_URI);
 const dbName = "perfin";
 
 (async () => {
