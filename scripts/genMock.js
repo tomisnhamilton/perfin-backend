@@ -9,7 +9,7 @@ const TARGET_TRANSACTIONS = 5000;
 
 
 const client = new MongoClient(process.env.MONGO_URI);
-const dbName = "perfin";
+const dbName = "perfin-testbox";
 
 (async () => {
   await client.connect();
