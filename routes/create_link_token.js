@@ -1,25 +1,26 @@
 // routes/create_link_token.js
 const express = require('express');
 const router = express.Router();
+const { plaidClient } = require('../plaid/plaidClient'); // Adjust path if needed
 
-module.exports = (plaidClient) => {
-    router.get('/create_link_token', async (req, res) => {
-        try {
-            const response = await plaidClient.linkTokenCreate({
-                user: { client_user_id: 'user-id-123' }, // TODO: dynamically set user ID later
-                client_name: 'perfin',
-                products: ['transactions'],
-                country_codes: ['US'],
-                language: 'en',
-                redirect_uri: 'perfin://plaid/oauth'
-            });
+router.get('/', async (req, res) => {
+    try {
+        const userId = 'demo-user-001'; // Replace with dynamic ID later
 
-            res.json({ link_token: response.data.link_token });
-        } catch (error) {
-            console.error('❌ Error creating link token:', error.message);
-            res.status(500).json({ error: 'Failed to create link token' });
-        }
-    });
+        const response = await plaidClient.linkTokenCreate({
+            user: { client_user_id: userId },
+            client_name: 'Perfin',
+            products: ['transactions'],
+            country_codes: ['US'],
+            language: 'en',
+            redirect_uri: process.env.PLAID_REDIRECT_URI || undefined
+        });
 
-    return router;
-};
+        res.json({ link_token: response.data.link_token });
+    } catch (error) {
+        console.error('Error creating link token:', error);
+        res.status(500).json({ error: 'Failed to create link token' });
+    }
+});
+
+module.exports = router;

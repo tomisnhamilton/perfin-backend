@@ -88,7 +88,7 @@ const dbName = "perfin-testbox";
   await db.collection('accounts').insertMany(accounts);
   await db.collection('transactions').insertMany(transactions);
 
-  console.log("✅ Inserted Plaid-like test data into MongoDB!");
+  console.log("Inserted Plaid-like test data into MongoDB!");
   await client.close();
 })();
 
