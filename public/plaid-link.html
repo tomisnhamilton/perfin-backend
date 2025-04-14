@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Plaid Link</title>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background: #ffffff;
+            color: #333;
+        }
+
+        #open-status {
+            font-size: 18px;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+<script>
+    function startPlaid() {
+        if (!window.Plaid) {
+            setTimeout(startPlaid, 100);
+            return;
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const linkToken = urlParams.get('token');
+
+        const handler = Plaid.create({
+            token: linkToken,
+            onSuccess: function (public_token, metadata) {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ public_token, metadata }));
+            },
+            onExit: function (err, metadata) {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({ exit: true, metadata }));
+            },
+        });
+
+        handler.open();
+    }
+
+    window.onload = startPlaid;
+</script>
+<div id="open-status">🔐 Launching secure bank connection...</div>
+</body>
+</html>

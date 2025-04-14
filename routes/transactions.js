@@ -1,4 +1,8 @@
-app.get('/api/transactions', async (req, res) => {
-    const results = await db.collection('transactions').find().toArray();
-    res.json(results);
-});
+const express = require('express');
+const getPlaidTransactions = require('../plaid/transactions');
+
+module.exports = function(plaidClient, db) {
+    const router = express.Router();
+    router.post('/api/transactions', getPlaidTransactions(plaidClient, db));
+    return router; // ✅ MUST return the router!
+};
