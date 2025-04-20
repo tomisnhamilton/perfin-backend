@@ -1,4 +1,4 @@
-// routes/liabilities.js
+// routes_plaid/liabilities.js
 const express = require('express');
 const getPlaidLiabilities = require('../plaid/liabilities');
 

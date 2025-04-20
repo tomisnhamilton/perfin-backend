@@ -1,4 +1,4 @@
-// routes/institution.js
+// routes_plaid/institution.js
 const express = require('express');
 const getPlaidInstitution = require('../plaid/institution');
 

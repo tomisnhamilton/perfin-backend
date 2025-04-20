@@ -1,4 +1,4 @@
-// routes/categories.js
+// routes_plaid/categories.js
 const express = require('express');
 const getPlaidCategories = require('../plaid/categories');
 

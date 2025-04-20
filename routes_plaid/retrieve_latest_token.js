@@ -1,4 +1,4 @@
-// routes/retrieve_latest_token.js
+// routes_plaid/retrieve_latest_token.js
 const express = require('express');
 const router = express.Router();
 

@@ -1,4 +1,4 @@
-// routes/balances.js
+// routes_plaid/balances.js
 const express = require('express');
 const getPlaidBalances = require('../plaid/balances');
 

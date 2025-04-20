@@ -1,4 +1,4 @@
-// routes/recurring.js
+// routes_plaid/recurring.js
 const express = require('express');
 const getPlaidRecurring = require('../plaid/recurring');
 
