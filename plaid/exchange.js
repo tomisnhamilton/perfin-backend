@@ -16,6 +16,7 @@ module.exports = (db) => async (req, res) => {
 
         await db.collection('transactions').insertMany(tx.data.transactions);
         res.json({ success: true, access_token });
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Token exchange failed' });

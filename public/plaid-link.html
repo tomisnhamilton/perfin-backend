@@ -13,7 +13,6 @@
             background: #ffffff;
             color: #333;
         }
-
         #open-status {
             font-size: 18px;
             padding: 20px;
@@ -23,15 +22,24 @@
 </head>
 
 <body>
+<div id="open-status">🔐 Launching secure bank connection...</div>
 <script>
-    function startPlaid() {
-        if (!window.Plaid) {
-            setTimeout(startPlaid, 100);
+    document.addEventListener("DOMContentLoaded", function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const linkToken = urlParams.get('token');
+        console.log("🔗 Loaded link token from URL:", linkToken);
+        document.getElementById("open-status").textContent = `Loaded token: ${linkToken}`;
+
+
+        if (!linkToken || linkToken === 'null') {
+            document.getElementById("open-status").textContent = "❌ Link token missing or invalid.";
             return;
         }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const linkToken = urlParams.get('token');
+        if (!window.Plaid) {
+            document.getElementById("open-status").textContent = "❌ Plaid.js not loaded.";
+            return;
+        }
 
         const handler = Plaid.create({
             token: linkToken,
@@ -44,10 +52,7 @@
         });
 
         handler.open();
-    }
-
-    window.onload = startPlaid;
+    });
 </script>
-<div id="open-status">🔐 Launching secure bank connection...</div>
 </body>
 </html>

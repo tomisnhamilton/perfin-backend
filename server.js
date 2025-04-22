@@ -4,6 +4,8 @@ const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { plaidClient } = require('./plaid/plaidClient');
 const transactionsRoute = require("./routes_plaid/transactions");
+const authRegister = require("./routes_db/auth/register");
+const authLogin = require("./routes_db/auth/login");
 require('dotenv').config();
 
 const app = express();
@@ -14,17 +16,25 @@ app.use(express.json());
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 const plaidLiveDBName = process.env.MONGO_DB_NAME_PLAID || 'perfin-sandbox';
+const mongoose = require('mongoose');
 
 // 🔁 Wait for Mongo before starting the server
 mongoClient.connect().then(() => {
     // MongoDB connection
     const db = mongoClient.db(plaidLiveDBName);
-    console.log(`✅ Connected to MongoDB (${plaidLiveDBName})`);
+    console.log(`Connected to MongoDB (${plaidLiveDBName})`);
+
+    mongoose.connect(process.env.MONGO_URI, {
+        dbName: plaidLiveDBName
+    }).then(() => {
+        console.log("Mongoose using DB:", mongoose.connection.name);
+    }).catch((err) => {
+        console.error("❌ Mongoose connection failed:", err.message);
+    });
 
     // Serve static files
     const path = require('path');
     app.use(express.static(path.join(__dirname, 'public')));
-
 
     // Register routes_plaid here
     const createLinkTokenRoute = require('./routes_plaid/create_link_token');
@@ -38,6 +48,7 @@ mongoClient.connect().then(() => {
     const recurringRoute = require('./routes_plaid/recurring')(plaidClient, db);
     const categoriesRoute = require('./routes_plaid/categories')(plaidClient, db);
 
+
     app.use('/api/create_link_token', createLinkTokenRoute);
     app.use('/api', exchangePublicTokenRoute);
     app.use('/api', retrieveLatestTokenRoute);
@@ -48,7 +59,6 @@ mongoClient.connect().then(() => {
     app.use(liabilitiesRoute);
     app.use(recurringRoute);
     app.use(categoriesRoute);
-
 
     // Register db routes
     const transactionsDbRoutes = require('./routes_db/transactions')(db);
@@ -61,6 +71,9 @@ mongoClient.connect().then(() => {
     const recurringDbRoutes = require('./routes_db/recurring')(db);
     const categoriesDbRoutes = require('./routes_db/category')(db);
     const transactionsByCategoryDbRoutes = require('./routes_db/category')(db);
+    const authRegister = require('./routes_db/auth/register');
+    const authLogin = require('./routes_db/auth/login');
+    const validateUser = require('./routes_db/auth/validate')(db);
 
     app.use('/api/db/transactions', transactionsDbRoutes);
     app.use('/api/db/transactions/by-group', groupedDbRoutes);
@@ -72,6 +85,10 @@ mongoClient.connect().then(() => {
     app.use('/api/db/liabilities', liabilitiesDbRoutes);
     app.use('/api/db/recurring', recurringDbRoutes);
     app.use('/api/db/categories', categoriesDbRoutes);
+    app.use('/api/db/auth/register', authRegister);
+    app.use('/api/db/auth/login', authLogin);
+    app.use('/api/db/auth/validate', validateUser);
+
 
 
     app.listen(PORT, () => {

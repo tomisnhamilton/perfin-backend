@@ -21,6 +21,7 @@
   "homepage": "https://github.com/tomisnhamilton/perfin-backend#readme",
   "dependencies": {
     "@faker-js/faker": "^9.6.0",
+    "bcrypt": "^5.1.1",
     "bson": "^6.10.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
