@@ -3,7 +3,7 @@ const { ObjectId } = require('mongodb');
 const router = express.Router();
 
 module.exports = (plaidClient, db) => {
-    router.post('/exchange_public_token', async (req, res) => {
+    router.post('/', async (req, res) => {
         const { public_token, user_id } = req.body;
         console.log('🔁 Received public token:', public_token);
 

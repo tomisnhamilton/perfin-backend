@@ -50,8 +50,8 @@ mongoClient.connect().then(() => {
 
 
     app.use('/api/create_link_token', createLinkTokenRoute);
-    app.use('/api', exchangePublicTokenRoute);
-    app.use('/api', retrieveLatestTokenRoute);
+    app.use('/api/exchange_public_token', exchangePublicTokenRoute);
+    app.use('/api/retrieve_latest_token', retrieveLatestTokenRoute);
     app.use(accountsRoute);
     app.use(transactionsRoute);
     app.use(balancesRoute);
@@ -90,6 +90,28 @@ mongoClient.connect().then(() => {
     app.use('/api/db/auth/validate', validateUser);
 
 
+    // Add this to your server.js file, just before the app.listen call
+
+// Health check endpoint
+    app.get('/health', (req, res) => {
+        res.status(200).send('Server is running');
+    });
+
+// Test the Plaid HTML page accessibility
+    app.get('/test-html', (req, res) => {
+        res.status(200).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Plaid HTML Test</title>
+        </head>
+        <body>
+            <h1>Plaid HTML Test Page</h1>
+            <p>If you can see this, your HTML is being served correctly.</p>
+        </body>
+        </html>
+    `);
+    });
 
     app.listen(PORT, () => {
         console.log(`🚀 Server running at http://localhost:${PORT}`);

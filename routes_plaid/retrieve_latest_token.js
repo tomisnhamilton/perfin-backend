@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 module.exports = (db) => {
-    router.get('/retrieve_latest_token', async (req, res) => {
+    router.get('/', async (req, res) => {
         try {
             if (!db) {
                 console.error('❌ MongoDB not connected');
