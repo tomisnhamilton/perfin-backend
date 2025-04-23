@@ -4,6 +4,6 @@ const getPlaidLiabilities = require('../plaid/liabilities');
 
 module.exports = function(plaidClient, db) {
     const router = express.Router();
-    router.post('/api/liabilities', getPlaidLiabilities(plaidClient, db));
+    router.post('/', getPlaidLiabilities(plaidClient, db));
     return router;
 };

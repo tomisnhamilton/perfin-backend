@@ -4,6 +4,6 @@ const getPlaidInstitution = require('../plaid/institution');
 
 module.exports = function(plaidClient, db) {
     const router = express.Router();
-    router.post('/api/institution', getPlaidInstitution(plaidClient, db));
+    router.post('/', getPlaidInstitution(plaidClient, db));
     return router;
 };

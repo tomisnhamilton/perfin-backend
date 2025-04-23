@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { plaidClient } = require('./plaid/plaidClient');
-const jwt = require('jsonwebtoken'); // Add this
+const jwt = require('jsonwebtoken');
 const transactionsRoute = require("./routes_plaid/transactions");
 const authRegister = require("./routes_db/auth/register");
 const authLogin = require("./routes_db/auth/login");
@@ -11,7 +11,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // Add this
+const JWT_SECRET = process.env.JWT_SECRET
 
 app.use(cors());
 app.use(express.json());
@@ -36,7 +36,6 @@ app.use(authenticateToken);
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 const plaidLiveDBName = process.env.MONGO_DB_NAME_PLAID || 'perfin-sandbox';
 const mongoose = require('mongoose');
-const deleteAccountRoute = require("./routes_db/auth/delete-account");
 
 // 🔁 Wait for Mongo before starting the server
 mongoClient.connect().then(() => {
@@ -69,18 +68,18 @@ mongoClient.connect().then(() => {
     const categoriesRoute = require('./routes_plaid/categories')(plaidClient, db);
     const syncPlaidDataRoute = require('./routes_plaid/sync_plaid_data');
 
-
     app.use('/api/create_link_token', createLinkTokenRoute);
     app.use('/api/exchange_public_token', exchangePublicTokenRoute);
     app.use('/api/retrieve_latest_token', retrieveLatestTokenRoute);
-    app.use(accountsRoute);
-    app.use(transactionsRoute);
-    app.use(balancesRoute);
-    app.use(institutionRoute);
-    app.use(liabilitiesRoute);
-    app.use(recurringRoute);
-    app.use(categoriesRoute);
+    app.use('/api/accounts', accountsRoute);
+    app.use('/api/transactions', transactionsRoute);
+    app.use('/api/balances', balancesRoute);
+    app.use('/api/institution', institutionRoute);
+    app.use('/api/liabilities', liabilitiesRoute);
+    app.use('/api/recurring', recurringRoute);
+    app.use('/api/categories', categoriesRoute);
     app.use('/api/sync_plaid_data', syncPlaidDataRoute(plaidClient, db));
+
 
     // Register db routes
     const transactionsDbRoutes = require('./routes_db/transactions')(db);
@@ -97,8 +96,6 @@ mongoClient.connect().then(() => {
     const authLogin = require('./routes_db/auth/login')(JWT_SECRET); // Pass JWT_SECRET
     const validateUser = require('./routes_db/auth/validate')(db);
     const deleteAccountRoute = require('./routes_db/auth/delete-account');
-
-
 
     app.use('/api/db/transactions', transactionsDbRoutes);
     app.use('/api/db/transactions/by-group', groupedDbRoutes);

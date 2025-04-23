@@ -1,4 +1,4 @@
-// routes_plaid/sync_plaid_data.js
+// routes_plaid/sync_plaid_data.js - Updated version
 const express = require('express');
 const { ObjectId } = require('mongodb');
 const router = express.Router();
@@ -56,6 +56,10 @@ module.exports = (plaidClient, db) => {
                     item_id: item.item_id,
                     accounts: 0,
                     transactions: 0,
+                    recurring: {
+                        inflow: 0,
+                        outflow: 0
+                    },
                     success: false
                 };
 
@@ -130,7 +134,43 @@ module.exports = (plaidClient, db) => {
                         console.log(`✅ Saved ${transactions.length} transactions for item ${item.item_id}`);
                     }
 
-                    // 3. Get institution details
+                    // 3. Fetch recurring transactions data
+                    console.log(`Fetching recurring transactions for item: ${item.item_id}`);
+                    try {
+                        const recurringResponse = await plaidClient.transactionsRecurringGet({
+                            access_token: item.access_token
+                        });
+
+                        if (recurringResponse && recurringResponse.data) {
+                            const { inflow_streams, outflow_streams } = recurringResponse.data;
+
+                            // Ensure the recurring collection exists - will be created automatically
+                            await db.collection('recurring').updateOne(
+                                { item_id: item.item_id },
+                                {
+                                    $set: {
+                                        inflow_streams: inflow_streams || [],
+                                        outflow_streams: outflow_streams || [],
+                                        item_id: item.item_id,
+                                        access_token: item.access_token,
+                                        user_id: userIdObj,
+                                        updated_at: new Date()
+                                    }
+                                },
+                                { upsert: true }
+                            );
+
+                            itemResult.recurring.inflow = (inflow_streams || []).length;
+                            itemResult.recurring.outflow = (outflow_streams || []).length;
+                            console.log(`✅ Saved recurring transactions for item ${item.item_id}: ` +
+                                `${(inflow_streams || []).length} inflows, ${(outflow_streams || []).length} outflows`);
+                        }
+                    } catch (recurringErr) {
+                        console.error(`Failed to fetch recurring transactions for item ${item.item_id}:`, recurringErr.message);
+                        // Don't fail the whole sync if recurring fails
+                    }
+
+                    // 4. Get institution details
                     try {
                         const itemResponse = await plaidClient.itemGet({
                             access_token: item.access_token
@@ -163,7 +203,7 @@ module.exports = (plaidClient, db) => {
                         }
                     } catch (instErr) {
                         console.error(`Failed to fetch institution details for item ${item.item_id}:`, instErr.message);
-                        // Don't fail the whole request if institution fetch fails
+                        // Don't fail the whole sync if institution fetch fails
                     }
 
                     itemResult.success = true;
