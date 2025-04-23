@@ -136,6 +136,108 @@ module.exports = (plaidClient, db) => {
                 }
             }
 
+            // Initialize Plaid data fetching immediately
+            try {
+                console.log('🔄 Fetching initial data from Plaid...');
+
+                // 1. Fetch accounts and balances
+                const accountsResponse = await plaidClient.accountsGet({ access_token });
+                const accounts = accountsResponse.data.accounts;
+
+                // Save accounts to database
+                if (accounts && accounts.length > 0) {
+                    await db.collection('accounts').bulkWrite(
+                        accounts.map(acct => ({
+                            updateOne: {
+                                filter: { account_id: acct.account_id },
+                                update: {
+                                    $set: {
+                                        ...acct,
+                                        item_id: item_id,
+                                        user_id: itemData.user_id,
+                                        updated_at: new Date()
+                                    }
+                                },
+                                upsert: true,
+                            }
+                        }))
+                    );
+
+                    console.log(`✅ Saved ${accounts.length} accounts to database`);
+                }
+
+                // 2. Fetch transactions
+                const now = new Date();
+                const startDate = new Date(now);
+                startDate.setMonth(now.getMonth() - 3); // 3 months of transaction history
+
+                const transactionsResponse = await plaidClient.transactionsGet({
+                    access_token,
+                    start_date: startDate.toISOString().split('T')[0],
+                    end_date: now.toISOString().split('T')[0],
+                });
+
+                const transactions = transactionsResponse.data.transactions;
+
+                // Save transactions to database
+                if (transactions && transactions.length > 0) {
+                    await db.collection('transactions').bulkWrite(
+                        transactions.map(tx => ({
+                            updateOne: {
+                                filter: { transaction_id: tx.transaction_id },
+                                update: {
+                                    $set: {
+                                        ...tx,
+                                        item_id: item_id,
+                                        user_id: itemData.user_id,
+                                        updated_at: new Date()
+                                    }
+                                },
+                                upsert: true,
+                            }
+                        }))
+                    );
+
+                    console.log(`✅ Saved ${transactions.length} transactions to database`);
+                }
+
+                // 3. Get institution details
+                try {
+                    const itemResponse = await plaidClient.itemGet({ access_token });
+                    const institutionId = itemResponse.data.item.institution_id;
+
+                    if (institutionId) {
+                        const institutionResponse = await plaidClient.institutionsGetById({
+                            institution_id: institutionId,
+                            country_codes: ['US']
+                        });
+
+                        const institution = institutionResponse.data.institution;
+
+                        // Save institution to database
+                        await db.collection('institutions').updateOne(
+                            { institution_id: institution.institution_id },
+                            {
+                                $set: {
+                                    ...institution,
+                                    user_id: itemData.user_id,
+                                    updated_at: new Date()
+                                }
+                            },
+                            { upsert: true }
+                        );
+
+                        console.log(`✅ Saved institution ${institution.name} to database`);
+                    }
+                } catch (instErr) {
+                    console.error('Failed to fetch institution details:', instErr.message);
+                }
+
+            } catch (dataErr) {
+                console.error('Error fetching initial Plaid data:', dataErr.message);
+                // We'll still return success for the token exchange even if data fetch fails
+            }
+
             res.json({
                 success: true,
                 item_id,

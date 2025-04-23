@@ -36,6 +36,7 @@ app.use(authenticateToken);
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 const plaidLiveDBName = process.env.MONGO_DB_NAME_PLAID || 'perfin-sandbox';
 const mongoose = require('mongoose');
+const deleteAccountRoute = require("./routes_db/auth/delete-account");
 
 // 🔁 Wait for Mongo before starting the server
 mongoClient.connect().then(() => {
@@ -66,6 +67,7 @@ mongoClient.connect().then(() => {
     const liabilitiesRoute = require('./routes_plaid/liabilities')(plaidClient, db);
     const recurringRoute = require('./routes_plaid/recurring')(plaidClient, db);
     const categoriesRoute = require('./routes_plaid/categories')(plaidClient, db);
+    const syncPlaidDataRoute = require('./routes_plaid/sync_plaid_data');
 
 
     app.use('/api/create_link_token', createLinkTokenRoute);
@@ -78,6 +80,7 @@ mongoClient.connect().then(() => {
     app.use(liabilitiesRoute);
     app.use(recurringRoute);
     app.use(categoriesRoute);
+    app.use('/api/sync_plaid_data', syncPlaidDataRoute(plaidClient, db));
 
     // Register db routes
     const transactionsDbRoutes = require('./routes_db/transactions')(db);
@@ -93,6 +96,9 @@ mongoClient.connect().then(() => {
     const authRegister = require('./routes_db/auth/register');
     const authLogin = require('./routes_db/auth/login')(JWT_SECRET); // Pass JWT_SECRET
     const validateUser = require('./routes_db/auth/validate')(db);
+    const deleteAccountRoute = require('./routes_db/auth/delete-account');
+
+
 
     app.use('/api/db/transactions', transactionsDbRoutes);
     app.use('/api/db/transactions/by-group', groupedDbRoutes);
@@ -107,6 +113,7 @@ mongoClient.connect().then(() => {
     app.use('/api/db/auth/register', authRegister);
     app.use('/api/db/auth/login', authLogin);
     app.use('/api/db/auth/validate', validateUser);
+    app.use('/api/db/auth/delete-account', deleteAccountRoute(db, JWT_SECRET));
 
     // User profile route to get current user
     app.get('/api/db/user/profile', async (req, res) => {
