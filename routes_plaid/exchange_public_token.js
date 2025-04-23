@@ -5,9 +5,23 @@ const router = express.Router();
 
 module.exports = (plaidClient, db) => {
     router.post('/', async (req, res) => {
-        const { public_token, user_id } = req.body;
+        const { public_token } = req.body;
         console.log('🔁 Received public token:', public_token);
-        console.log('👤 User ID from request:', user_id);
+
+        // Get user ID from authenticated user or from request body
+        let userId = null;
+
+        if (req.user) {
+            // Use authenticated user's ID if available
+            userId = req.user.id;
+            console.log('🔐 Using authenticated user ID:', userId);
+        } else if (req.body.user_id) {
+            // Fallback to request body user ID
+            userId = req.body.user_id;
+            console.log('📝 Using request body user ID:', userId);
+        }
+
+        console.log('👤 User ID for item association:', userId);
 
         if (!public_token) {
             console.error('❌ Missing public_token in request');
@@ -29,12 +43,23 @@ module.exports = (plaidClient, db) => {
             console.log('✅ Exchanged token:', access_token);
             console.log('🆔 Item ID:', item_id);
 
-            // Create the item document first
+            // Create the item document
             const itemData = {
                 access_token,
                 item_id,
                 updatedAt: new Date()
             };
+
+            // If we have a user ID, associate the item with that user
+            if (userId && userId !== 'demo-user-id') {
+                try {
+                    // Add user_id to itemData
+                    itemData.user_id = new ObjectId(userId);
+                } catch (err) {
+                    console.warn('⚠️ Invalid ObjectId format for user_id:', userId);
+                    // We'll continue without the user_id in this case
+                }
+            }
 
             console.log('💾 Saving item to database...');
             const result = await db.collection('items').updateOne(
@@ -54,9 +79,9 @@ module.exports = (plaidClient, db) => {
             }
 
             // If we have a user_id, associate the item with the user
-            if (user_id) {
+            if (userId) {
                 // For demo-user-id, create a default user if it doesn't exist
-                if (user_id === 'demo-user-id') {
+                if (userId === 'demo-user-id') {
                     console.log('🧪 Using demo user');
                     await db.collection('users').updateOne(
                         { username: 'demo' },
@@ -75,18 +100,26 @@ module.exports = (plaidClient, db) => {
                 } else {
                     // Try to match either a string ID or an ObjectId
                     try {
-                        let query;
+                        let userIdObj;
 
                         // Check if the user_id is a valid ObjectId
-                        if (user_id.match(/^[0-9a-fA-F]{24}$/)) {
-                            query = { _id: new ObjectId(user_id) };
+                        if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+                            userIdObj = new ObjectId(userId);
                         } else {
-                            query = { username: user_id };
+                            // If it's not a valid ObjectId, we'll try to find by username
+                            const userByName = await db.collection('users').findOne({ username: userId });
+                            if (userByName) {
+                                userIdObj = userByName._id;
+                            } else {
+                                console.log('⚠️ Could not find user with username:', userId);
+                                // We'll continue with the ObjectId attempt anyway
+                                userIdObj = new ObjectId(userId);
+                            }
                         }
 
                         console.log('🔄 Updating user document with item reference...');
                         const updateResult = await db.collection('users').updateOne(
-                            query,
+                            { _id: userIdObj },
                             { $addToSet: { items: insertedItem._id } }
                         );
 
@@ -94,7 +127,7 @@ module.exports = (plaidClient, db) => {
 
                         // If no user was found, let's log that but not fail the request
                         if (updateResult.matchedCount === 0) {
-                            console.log('⚠️ No user found with ID:', user_id);
+                            console.log('⚠️ No user found with ID:', userId);
                         }
                     } catch (userErr) {
                         console.error('⚠️ Error updating user document:', userErr.message);
@@ -103,7 +136,12 @@ module.exports = (plaidClient, db) => {
                 }
             }
 
-            res.json({ success: true, item_id, item_db_id: insertedItem._id });
+            res.json({
+                success: true,
+                item_id,
+                item_db_id: insertedItem._id,
+                user_id: userId
+            });
         } catch (err) {
             console.error('❌ Token exchange failed:', err.message, err.stack);
             res.status(500).json({ error: 'Token exchange failed' });

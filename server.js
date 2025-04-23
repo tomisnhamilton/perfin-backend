@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const { plaidClient } = require('./plaid/plaidClient');
+const jwt = require('jsonwebtoken'); // Add this
 const transactionsRoute = require("./routes_plaid/transactions");
 const authRegister = require("./routes_db/auth/register");
 const authLogin = require("./routes_db/auth/login");
@@ -10,9 +11,27 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // Add this
 
 app.use(cors());
 app.use(express.json());
+
+// Add authentication middleware
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return next(); // Allow requests without token, but user won't be authenticated
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return next(); // Allow the request to continue, but user won't be authenticated
+        req.user = user;
+        next();
+    });
+};
+
+// Use the middleware
+app.use(authenticateToken);
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 const plaidLiveDBName = process.env.MONGO_DB_NAME_PLAID || 'perfin-sandbox';
@@ -72,7 +91,7 @@ mongoClient.connect().then(() => {
     const categoriesDbRoutes = require('./routes_db/category')(db);
     const transactionsByCategoryDbRoutes = require('./routes_db/category')(db);
     const authRegister = require('./routes_db/auth/register');
-    const authLogin = require('./routes_db/auth/login');
+    const authLogin = require('./routes_db/auth/login')(JWT_SECRET); // Pass JWT_SECRET
     const validateUser = require('./routes_db/auth/validate')(db);
 
     app.use('/api/db/transactions', transactionsDbRoutes);
@@ -89,15 +108,35 @@ mongoClient.connect().then(() => {
     app.use('/api/db/auth/login', authLogin);
     app.use('/api/db/auth/validate', validateUser);
 
+    // User profile route to get current user
+    app.get('/api/db/user/profile', async (req, res) => {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
 
-    // Add this to your server.js file, just before the app.listen call
+        try {
+            const user = await db.collection('users').findOne(
+                { _id: new mongoose.Types.ObjectId(req.user.id) },
+                { projection: { password: 0 } } // Don't return password
+            );
 
-// Health check endpoint
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            res.json(user);
+        } catch (err) {
+            console.error('Error fetching user profile:', err);
+            res.status(500).json({ error: 'Server error' });
+        }
+    });
+
+    // Health check endpoint
     app.get('/health', (req, res) => {
         res.status(200).send('Server is running');
     });
 
-// Test the Plaid HTML page accessibility
+    // Test the Plaid HTML page accessibility
     app.get('/test-html', (req, res) => {
         res.status(200).send(`
         <!DOCTYPE html>
