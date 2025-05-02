@@ -1,9 +1,11 @@
+// Modified version of routes_db/accounts.js
 const express = require('express');
 const { ObjectId } = require('mongodb');
 const router = express.Router();
 
 module.exports = (db) => {
     const accountsCollection = db.collection('accounts');
+    const itemsCollection = db.collection('items');
 
     // GET /api/db/accounts
     router.get('/', async (req, res) => {
@@ -15,21 +17,35 @@ module.exports = (db) => {
 
             let query = {};
 
-            // Add user filtering if available
+            // If userId is provided, use it to find all items belonging to this user
             if (userId) {
                 try {
-                    // Add user_id as ObjectId to query
-                    query.user_id = new ObjectId(userId);
-                    console.log('Accounts query with user_id:', query);
+                    const userIdObj = new ObjectId(userId);
+
+                    // Find all items for this user
+                    const userItems = await itemsCollection.find({
+                        user_id: userIdObj
+                    }).toArray();
+
+                    // Extract the item_ids to filter accounts
+                    const itemIds = userItems.map(item => item.item_id);
+
+                    if (itemIds.length > 0) {
+                        // Add item_id filter for accounts
+                        query.item_id = { $in: itemIds };
+                    } else {
+                        console.log('No items found for user:', userId);
+                        return res.json([]); // No items, so no accounts
+                    }
                 } catch (err) {
                     console.warn('Invalid ObjectId format for user_id:', userId);
-                    // If user_id is not a valid ObjectId, we'll try string comparison
-                    query.user_id = userId;
+                    return res.status(400).json({ error: 'Invalid user ID format' });
                 }
             }
 
+            console.log('Accounts query:', query);
             const accounts = await accountsCollection.find(query).toArray();
-            console.log(`Found ${accounts.length} accounts for query:`, query);
+            console.log(`Found ${accounts.length} accounts for query`);
 
             res.json(accounts);
         } catch (err) {

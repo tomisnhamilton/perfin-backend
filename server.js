@@ -66,7 +66,7 @@ mongoClient.connect().then(() => {
     const liabilitiesRoute = require('./routes_plaid/liabilities')(plaidClient, db);
     const recurringRoute = require('./routes_plaid/recurring')(plaidClient, db);
     const categoriesRoute = require('./routes_plaid/categories')(plaidClient, db);
-    const syncPlaidDataRoute = require('./routes_plaid/sync_plaid_data');
+    const syncPlaidDataRoute = require('./routes_plaid/sync_plaid_data')(plaidClient, db);
 
     app.use('/api/create_link_token', createLinkTokenRoute);
     app.use('/api/exchange_public_token', exchangePublicTokenRoute);
@@ -78,7 +78,7 @@ mongoClient.connect().then(() => {
     app.use('/api/liabilities', liabilitiesRoute);
     app.use('/api/recurring', recurringRoute);
     app.use('/api/categories', categoriesRoute);
-    app.use('/api/sync_plaid_data', syncPlaidDataRoute(plaidClient, db));
+    app.use('/api/sync_plaid_data', syncPlaidDataRoute);
 
 
     // Register db routes

@@ -1,9 +1,12 @@
-// routes_db/recurring.js - Updated route
+// Modified version of routes_db/recurring.js
 const express = require('express');
 const { ObjectId } = require('mongodb');
 const router = express.Router();
 
 module.exports = (db) => {
+    const recurringCollection = db.collection('recurring');
+    const itemsCollection = db.collection('items');
+
     // GET /api/db/recurring
     router.get('/', async (req, res) => {
         try {
@@ -14,22 +17,39 @@ module.exports = (db) => {
 
             let query = {};
 
-            // Add user filtering if available
+            // If userId is provided, use it to find all items belonging to this user
             if (userId) {
                 try {
-                    // Add user_id as ObjectId to query
-                    query.user_id = new ObjectId(userId);
-                    console.log('Recurring query with user_id:', query);
+                    const userIdObj = new ObjectId(userId);
+
+                    // Find all items for this user
+                    const userItems = await itemsCollection.find({
+                        user_id: userIdObj
+                    }).toArray();
+
+                    // Extract the item_ids to filter recurring transactions
+                    const itemIds = userItems.map(item => item.item_id);
+
+                    if (itemIds.length > 0) {
+                        // Add item_id filter for recurring transactions
+                        query.item_id = { $in: itemIds };
+                    } else {
+                        console.log('No items found for user:', userId);
+                        // Return empty structure for no recurring transactions
+                        return res.json({
+                            inflow_streams: [],
+                            outflow_streams: []
+                        });
+                    }
                 } catch (err) {
                     console.warn('Invalid ObjectId format for user_id:', userId);
-                    // If user_id is not a valid ObjectId, try string comparison
-                    query.user_id = userId;
+                    return res.status(400).json({ error: 'Invalid user ID format' });
                 }
             }
 
-            // Get all recurring transactions for this user
-            const recurring = await db.collection('recurring').find(query).toArray();
-            console.log(`Found ${recurring.length} recurring records for user`);
+            // Get all recurring transactions that match the query
+            const recurring = await recurringCollection.find(query).toArray();
+            console.log(`Found ${recurring.length} recurring records`);
 
             // If we have results, process them
             if (recurring && recurring.length > 0) {

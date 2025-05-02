@@ -1,4 +1,4 @@
-// routes_plaid/sync_plaid_data.js - Updated version
+// routes_plaid/sync_plaid_data.js - Fixed version
 const express = require('express');
 const { ObjectId } = require('mongodb');
 const router = express.Router();
@@ -72,7 +72,7 @@ module.exports = (plaidClient, db) => {
 
                     const accounts = accountsResponse.data.accounts;
 
-                    // Save accounts to database
+                    // Save accounts to database - ONLY link to item_id, not user_id
                     if (accounts && accounts.length > 0) {
                         await db.collection('accounts').bulkWrite(
                             accounts.map(acct => ({
@@ -82,7 +82,6 @@ module.exports = (plaidClient, db) => {
                                         $set: {
                                             ...acct,
                                             item_id: item.item_id,
-                                            user_id: userIdObj,
                                             updated_at: new Date()
                                         }
                                     },
@@ -110,7 +109,7 @@ module.exports = (plaidClient, db) => {
 
                     const transactions = transactionsResponse.data.transactions;
 
-                    // Save transactions to database
+                    // Save transactions to database - ONLY link to item_id, not user_id
                     if (transactions && transactions.length > 0) {
                         await db.collection('transactions').bulkWrite(
                             transactions.map(tx => ({
@@ -120,7 +119,6 @@ module.exports = (plaidClient, db) => {
                                         $set: {
                                             ...tx,
                                             item_id: item.item_id,
-                                            user_id: userIdObj,
                                             updated_at: new Date()
                                         }
                                     },
@@ -144,7 +142,7 @@ module.exports = (plaidClient, db) => {
                         if (recurringResponse && recurringResponse.data) {
                             const { inflow_streams, outflow_streams } = recurringResponse.data;
 
-                            // Ensure the recurring collection exists - will be created automatically
+                            // Save recurring transactions - ONLY link to item_id, not user_id
                             await db.collection('recurring').updateOne(
                                 { item_id: item.item_id },
                                 {
@@ -153,7 +151,6 @@ module.exports = (plaidClient, db) => {
                                         outflow_streams: outflow_streams || [],
                                         item_id: item.item_id,
                                         access_token: item.access_token,
-                                        user_id: userIdObj,
                                         updated_at: new Date()
                                     }
                                 },
@@ -186,20 +183,33 @@ module.exports = (plaidClient, db) => {
 
                             const institution = institutionResponse.data.institution;
 
-                            // Save institution to database
-                            await db.collection('institutions').updateOne(
-                                { institution_id: institution.institution_id },
-                                {
-                                    $set: {
-                                        ...institution,
-                                        user_id: userIdObj,
-                                        updated_at: new Date()
-                                    }
-                                },
-                                { upsert: true }
-                            );
+                            // Check if this institution already exists
+                            const existingInstitution = await db.collection('institutions').findOne({
+                                institution_id: institution.institution_id
+                            });
 
-                            console.log(`✅ Saved institution ${institution.name} to database`);
+                            if (existingInstitution) {
+                                // Update existing institution to add this item_id to the array
+                                await db.collection('institutions').updateOne(
+                                    { institution_id: institution.institution_id },
+                                    {
+                                        $set: {
+                                            ...institution,
+                                            updated_at: new Date()
+                                        },
+                                        $addToSet: { item_ids: item.item_id }
+                                    }
+                                );
+                                console.log(`Added item ${item.item_id} to existing institution ${institution.name}`);
+                            } else {
+                                // Create new institution with item_ids array
+                                await db.collection('institutions').insertOne({
+                                    ...institution,
+                                    item_ids: [item.item_id],
+                                    updated_at: new Date()
+                                });
+                                console.log(`Created new institution ${institution.name} with item ${item.item_id}`);
+                            }
                         }
                     } catch (instErr) {
                         console.error(`Failed to fetch institution details for item ${item.item_id}:`, instErr.message);

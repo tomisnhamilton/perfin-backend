@@ -1,9 +1,10 @@
-// routes_plaid/exchange_public_token.js
+// routes_plaid/exchange_public_token.js - Corrected version
 const express = require('express');
 const { ObjectId } = require('mongodb');
-const router = express.Router();
 
-module.exports = (plaidClient, db) => {
+module.exports = function(plaidClient, db) {
+    const router = express.Router();
+
     router.post('/', async (req, res) => {
         const { public_token } = req.body;
         console.log('🔁 Received public token:', public_token);
@@ -78,61 +79,34 @@ module.exports = (plaidClient, db) => {
                 return res.status(500).json({ error: 'Item creation failed' });
             }
 
-            // If we have a user_id, associate the item with the user
+            // Associate the item with the user in the users collection
             if (userId) {
-                // For demo-user-id, create a default user if it doesn't exist
-                if (userId === 'demo-user-id') {
-                    console.log('🧪 Using demo user');
-                    await db.collection('users').updateOne(
-                        { username: 'demo' },
-                        {
-                            $set: {
-                                username: 'demo',
-                                email: 'demo@example.com',
-                                createdAt: new Date()
-                            },
-                            $addToSet: { items: insertedItem._id }
-                        },
-                        { upsert: true }
+                try {
+                    let userIdObj;
+
+                    // Check if the user_id is a valid ObjectId
+                    if (userId.match(/^[0-9a-fA-F]{24}$/)) {
+                        userIdObj = new ObjectId(userId);
+                    } else {
+                        // If it's not a valid ObjectId, try to find by username
+                        const userByName = await db.collection('users').findOne({ username: userId });
+                        if (userByName) {
+                            userIdObj = userByName._id;
+                        } else {
+                            console.log('⚠️ Could not find user with username:', userId);
+                            userIdObj = new ObjectId(userId);
+                        }
+                    }
+
+                    console.log('🔄 Updating user document with item reference...');
+                    const updateResult = await db.collection('users').updateOne(
+                        { _id: userIdObj },
+                        { $addToSet: { items: insertedItem._id } }
                     );
 
-                    console.log('✅ Updated demo user with new item');
-                } else {
-                    // Try to match either a string ID or an ObjectId
-                    try {
-                        let userIdObj;
-
-                        // Check if the user_id is a valid ObjectId
-                        if (userId.match(/^[0-9a-fA-F]{24}$/)) {
-                            userIdObj = new ObjectId(userId);
-                        } else {
-                            // If it's not a valid ObjectId, we'll try to find by username
-                            const userByName = await db.collection('users').findOne({ username: userId });
-                            if (userByName) {
-                                userIdObj = userByName._id;
-                            } else {
-                                console.log('⚠️ Could not find user with username:', userId);
-                                // We'll continue with the ObjectId attempt anyway
-                                userIdObj = new ObjectId(userId);
-                            }
-                        }
-
-                        console.log('🔄 Updating user document with item reference...');
-                        const updateResult = await db.collection('users').updateOne(
-                            { _id: userIdObj },
-                            { $addToSet: { items: insertedItem._id } }
-                        );
-
-                        console.log('✅ User update result:', updateResult.matchedCount, updateResult.modifiedCount);
-
-                        // If no user was found, let's log that but not fail the request
-                        if (updateResult.matchedCount === 0) {
-                            console.log('⚠️ No user found with ID:', userId);
-                        }
-                    } catch (userErr) {
-                        console.error('⚠️ Error updating user document:', userErr.message);
-                        // Don't fail the whole request if user update fails
-                    }
+                    console.log('✅ User update result:', updateResult.matchedCount, updateResult.modifiedCount);
+                } catch (userErr) {
+                    console.error('⚠️ Error updating user document:', userErr.message);
                 }
             }
 
@@ -144,7 +118,7 @@ module.exports = (plaidClient, db) => {
                 const accountsResponse = await plaidClient.accountsGet({ access_token });
                 const accounts = accountsResponse.data.accounts;
 
-                // Save accounts to database
+                // Save accounts to database - ONLY link to item_id, not user_id
                 if (accounts && accounts.length > 0) {
                     await db.collection('accounts').bulkWrite(
                         accounts.map(acct => ({
@@ -154,7 +128,6 @@ module.exports = (plaidClient, db) => {
                                     $set: {
                                         ...acct,
                                         item_id: item_id,
-                                        user_id: itemData.user_id,
                                         updated_at: new Date()
                                     }
                                 },
@@ -179,7 +152,7 @@ module.exports = (plaidClient, db) => {
 
                 const transactions = transactionsResponse.data.transactions;
 
-                // Save transactions to database
+                // Save transactions to database - ONLY link to item_id, not user_id
                 if (transactions && transactions.length > 0) {
                     await db.collection('transactions').bulkWrite(
                         transactions.map(tx => ({
@@ -189,7 +162,6 @@ module.exports = (plaidClient, db) => {
                                     $set: {
                                         ...tx,
                                         item_id: item_id,
-                                        user_id: itemData.user_id,
                                         updated_at: new Date()
                                     }
                                 },
@@ -214,28 +186,39 @@ module.exports = (plaidClient, db) => {
 
                         const institution = institutionResponse.data.institution;
 
-                        // Save institution to database
-                        await db.collection('institutions').updateOne(
-                            { institution_id: institution.institution_id },
-                            {
-                                $set: {
-                                    ...institution,
-                                    user_id: itemData.user_id,
-                                    updated_at: new Date()
-                                }
-                            },
-                            { upsert: true }
-                        );
+                        // Check if this institution already exists
+                        const existingInstitution = await db.collection('institutions').findOne({
+                            institution_id: institution.institution_id
+                        });
 
-                        console.log(`✅ Saved institution ${institution.name} to database`);
+                        if (existingInstitution) {
+                            // Update existing institution to add this item_id to the array
+                            await db.collection('institutions').updateOne(
+                                { institution_id: institution.institution_id },
+                                {
+                                    $set: {
+                                        ...institution,
+                                        updated_at: new Date()
+                                    },
+                                    $addToSet: { item_ids: item_id }
+                                }
+                            );
+                            console.log(`Added item ${item_id} to existing institution ${institution.name}`);
+                        } else {
+                            // Create new institution with item_ids array
+                            await db.collection('institutions').insertOne({
+                                ...institution,
+                                item_ids: [item_id],
+                                updated_at: new Date()
+                            });
+                            console.log(`Created new institution ${institution.name} with item ${item_id}`);
+                        }
                     }
                 } catch (instErr) {
                     console.error('Failed to fetch institution details:', instErr.message);
                 }
-
             } catch (dataErr) {
                 console.error('Error fetching initial Plaid data:', dataErr.message);
-                // We'll still return success for the token exchange even if data fetch fails
             }
 
             res.json({

@@ -1,4 +1,4 @@
-// plaid/institution.js
+// plaid/institution.js - Updated version
 module.exports = function(plaidClient, db) {
     return async function(req, res) {
         const accessToken = req.body.access_token || req.query.access_token;
@@ -11,6 +11,7 @@ module.exports = function(plaidClient, db) {
             // Step 1: Get item info to extract institution_id
             const itemResponse = await plaidClient.itemGet({ access_token: accessToken });
             const institutionId = itemResponse.data.item.institution_id;
+            const itemId = itemResponse.data.item.item_id;
 
             if (!institutionId) {
                 return res.status(404).json({ error: 'No institution_id found for item.' });
@@ -24,12 +25,33 @@ module.exports = function(plaidClient, db) {
 
             const institution = institutionResponse.data.institution;
 
-            // Save to MongoDB
-            await db.collection('institutions').updateOne(
-                { institution_id: institution.institution_id },
-                { $set: institution },
-                { upsert: true }
-            );
+            // Step 3: Save to MongoDB with an array of item_ids
+            const existingInstitution = await db.collection('institutions').findOne({
+                institution_id: institution.institution_id
+            });
+
+            if (existingInstitution) {
+                // Update existing institution to add this item_id to the array
+                await db.collection('institutions').updateOne(
+                    { institution_id: institution.institution_id },
+                    {
+                        $set: {
+                            ...institution,
+                            updated_at: new Date()
+                        },
+                        $addToSet: { item_ids: itemId }
+                    }
+                );
+                console.log(`Added item ${itemId} to existing institution ${institution.name}`);
+            } else {
+                // Create new institution with item_ids array
+                await db.collection('institutions').insertOne({
+                    ...institution,
+                    item_ids: [itemId],
+                    updated_at: new Date()
+                });
+                console.log(`Created new institution ${institution.name} with item ${itemId}`);
+            }
 
             res.json(institution);
         } catch (err) {
